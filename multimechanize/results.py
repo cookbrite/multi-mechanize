@@ -62,6 +62,9 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
         t = (resp_stats.elapsed_time, resp_stats.trans_time)
         trans_timer_points.append(t)
         trans_timer_vals.append(resp_stats.trans_time)
+    else:
+        trans_timer_vals = [run_time]
+        trans_timer_points = [(run_time, run_time)]
     graph.resp_graph_raw(trans_timer_points, 'All_Transactions_response_times.png', results_dir)
 
     report.write_line('<h3>Transaction Response Summary (secs)</h3>')
@@ -248,10 +251,15 @@ class Results(object):
         self.uniq_timer_names = set()
         self.uniq_user_group_names = set()
 
+        print "Parse file: {}".format(results_file_name)
         self.resp_stats_list = self.__parse_file()
 
-        self.epoch_start = self.resp_stats_list[0].epoch_secs
-        self.epoch_finish = self.resp_stats_list[-1].epoch_secs
+        if self.resp_stats_list:
+            self.epoch_start = self.resp_stats_list[0].epoch_secs
+            self.epoch_finish = self.resp_stats_list[-1].epoch_secs
+        else:
+            self.epoch_start = self.epoch_finish = time.mktime(time.localtime())
+
         self.start_datetime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.epoch_start))
         self.finish_datetime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.epoch_finish))
 
