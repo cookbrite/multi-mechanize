@@ -58,10 +58,11 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
     # all transactions - response times
     trans_timer_points = []  # [elapsed, timervalue]
     trans_timer_vals = []
-    for resp_stats in results.resp_stats_list:
-        t = (resp_stats.elapsed_time, resp_stats.trans_time)
-        trans_timer_points.append(t)
-        trans_timer_vals.append(resp_stats.trans_time)
+    if results.resp_stats_list:
+        for resp_stats in results.resp_stats_list:
+            t = (resp_stats.elapsed_time, resp_stats.trans_time)
+            trans_timer_points.append(t)
+            trans_timer_vals.append(resp_stats.trans_time)
     else:
         trans_timer_vals = [run_time]
         trans_timer_points = [(run_time, run_time)]
