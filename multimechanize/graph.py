@@ -37,6 +37,26 @@ def resp_graph_raw(nested_resp_list, image_name, dir='./'):
 
 
 
+# response time interval graph for raw data
+def resp_graph_interval(nested_resp_list, image_name, dir='./'):
+    fig = figure(figsize=(8, 5))  # image dimensions
+    ax = fig.add_subplot(111)
+    ax.set_xlabel('Elapsed Time In Test (secs)', size='x-small')
+    ax.set_ylabel('Series' , size='x-small')
+    ax.grid(True, color='#666666')
+    xticks(size='x-small')
+    yticks(size='x-small')
+
+    # range bars
+    for index, item in enumerate(nested_resp_list):
+        color = 'red' if item[2] else 'blue'
+        ax.plot((item[0], item[0] + item[1]), (index, index), color=color, linestyle='-', linewidth=0.75)
+
+    ax.plot([0.0,], [0.0,], linewidth=0.0, markersize=0.0)
+    savefig(dir + image_name)
+
+
+
 # response time graph for bucketed data
 def resp_graph(avg_resptime_points_dict, percentile_80_resptime_points_dict, percentile_90_resptime_points_dict, image_name, dir='./'):
     fig = figure(figsize=(8, 3.3))  # image dimensions

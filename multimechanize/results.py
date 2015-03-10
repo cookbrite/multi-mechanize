@@ -18,8 +18,6 @@ import reportwriterxml
 def output_results(results_dir, results_file, run_time, rampup, ts_interval, user_group_configs=None, xml_reports=False):
     results = Results(results_dir + results_file, run_time)
 
-    report = reportwriter.Report(results_dir)
-
     print 'transactions: %i' % results.total_transactions
     print 'errors: %i' % results.total_errors
     print ''
@@ -29,10 +27,26 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
 
     # write the results in XML
     if xml_reports:
-        reportwriterxml.write_jmeter_output(results.resp_stats_list, results_dir)
+        reportwriterxml.write_jmeter_output(
+            results.resp_stats_list, results_dir, run_time, rampup, ts_interval, user_group_configs)
+
+    write_report(results, results_dir, run_time, rampup, ts_interval, user_group_configs)
+
+
+def write_report(results, results_dir, run_time, rampup, ts_interval, user_group_configs):
+    report = reportwriter.Report(results_dir)
 
     report.write_line('<h1>Performance Results Report</h1>')
 
+    write_summary(report, results, run_time, rampup, ts_interval, user_group_configs)
+    write_transactions(report, results, results_dir, run_time, ts_interval)
+    write_custom_timers(results)
+
+    report.write_line('<hr />')
+    report.write_closing_html()
+
+
+def write_summary(report, results, run_time, rampup, ts_interval, user_group_configs):
     report.write_line('<h2>Summary</h2>')
 
     report.write_line('<div class="summary">')
@@ -55,19 +69,48 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
 
     report.write_line('<h2>All Transactions</h2>')
 
+
+def write_transactions(report, results, results_dir, run_time, ts_interval):
+    # generate data
+    (trans_timer_points, trans_timer_vals) = generate_data_points(results, run_time)
+
+    # write HTML
+    write_transaction_response_summary(report, results, trans_timer_vals)
+
+    (avg_resptime_points, percentile_80_resptime_points, percentile_90_resptime_points) = write_interval_details(
+        report, results_dir, ts_interval, trans_timer_points)
+
+    write_graphs(report, ts_interval)
+
+    # generate graphs
+    generate_response_time_series(
+        results_dir, avg_resptime_points, percentile_80_resptime_points, percentile_90_resptime_points)
+    graph_response_times_raw(results_dir, trans_timer_points)
+    graph_response_time_intervals(results_dir, trans_timer_points)
+    generate_throughput_graph(trans_timer_points, results_dir, ts_interval)
+
+
+def generate_data_points(results, run_time):
     # all transactions - response times
-    trans_timer_points = []  # [elapsed, timervalue]
+    trans_timer_points = []  # [elapsed, timervalue, errors]
     trans_timer_vals = []
     if results.resp_stats_list:
         for resp_stats in results.resp_stats_list:
-            t = (resp_stats.elapsed_time, resp_stats.trans_time)
+            t = (resp_stats.elapsed_time, resp_stats.trans_time, resp_stats.error)
             trans_timer_points.append(t)
             trans_timer_vals.append(resp_stats.trans_time)
     else:
         trans_timer_vals = [run_time]
-        trans_timer_points = [(run_time, run_time)]
+        trans_timer_points = [(run_time, run_time, False)]
+
+    return trans_timer_points, trans_timer_vals
+
+
+def graph_response_times_raw(results_dir, trans_timer_points):
     graph.resp_graph_raw(trans_timer_points, 'All_Transactions_response_times.png', results_dir)
 
+
+def write_transaction_response_summary(report, results, trans_timer_vals):
     report.write_line('<h3>Transaction Response Summary (secs)</h3>')
     report.write_line('<table>')
     report.write_line('<tr><th>count</th><th>min</th><th>avg</th><th>80pct</th><th>90pct</th><th>95pct</th><th>max</th><th>stdev</th></tr>')
@@ -84,6 +127,11 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
     report.write_line('</table>')
 
 
+def graph_response_time_intervals(results_dir, trans_timer_points):
+    graph.resp_graph_interval(trans_timer_points, 'All_Transactions_response_intervals.png', results_dir)
+
+
+def write_interval_details(report, results_dir, ts_interval, trans_timer_points):
     # all transactions - interval details
     avg_resptime_points = {}  # {intervalnumber: avg_resptime}
     percentile_80_resptime_points = {}  # {intervalnumber: 80pct_resptime}
@@ -115,19 +163,26 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
             percentile_90_resptime_points[interval_start] = pct_90
 
     report.write_line('</table>')
+    return avg_resptime_points, percentile_80_resptime_points, percentile_90_resptime_points
+
+
+def generate_response_time_series(results_dir, avg_resptime_points, percentile_80_resptime_points, percentile_90_resptime_points):
     graph.resp_graph(avg_resptime_points, percentile_80_resptime_points, percentile_90_resptime_points, 'All_Transactions_response_times_intervals.png', results_dir)
 
 
+def write_graphs(report, ts_interval):
     report.write_line('<h3>Graphs</h3>')
     report.write_line('<h4>Response Time: %s sec time-series</h4>' % ts_interval)
     report.write_line('<img src="All_Transactions_response_times_intervals.png"></img>')
     report.write_line('<h4>Response Time: raw data (all points)</h4>')
     report.write_line('<img src="All_Transactions_response_times.png"></img>')
+    report.write_line('<h4>Response Time: intervals (all points)</h4>')
+    report.write_line('<img src="All_Transactions_response_intervals.png"></img>')
     report.write_line('<h4>Throughput: 5 sec time-series</h4>')
     report.write_line('<img src="All_Transactions_throughput.png"></img>')
 
 
-
+def generate_throughput_graph(trans_timer_points, results_dir, ts_interval):
     # all transactions - throughput
     throughput_points = {}  # {intervalnumber: numberofrequests}
     interval_secs = ts_interval
@@ -137,7 +192,7 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
     graph.tp_graph(throughput_points, 'All_Transactions_throughput.png', results_dir)
 
 
-
+def write_custom_timers(results):
     # custom timers
     for timer_name in sorted(results.uniq_timer_names):
         custom_timer_vals = []
@@ -237,10 +292,6 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
     #    print 'max: %.3f' % max(ug_timer_vals)
     #    print ''
 
-    report.write_line('<hr />')
-    report.write_closing_html()
-
-
 
 
 class Results(object):
@@ -298,8 +349,7 @@ class Results(object):
 
             r = ResponseStats(request_num, elapsed_time, epoch_secs, user_group_name, trans_time, error, custom_timers)
 
-            if elapsed_time < self.run_time:  # drop all times that appear after the last request was sent (incomplete interval)
-                resp_stats_list.append(r)
+            resp_stats_list.append(r)
 
             if error != '':
                 self.total_errors += 1
@@ -326,7 +376,7 @@ def split_series(points, interval):
     offset = points[0][0]
     maxval = int((points[-1][0] - offset) // interval)
     vals = defaultdict(list)
-    for key, value in points:
+    for key, value, _ in points:
         vals[(key - offset) // interval].append(value)
     series = [vals[i] for i in xrange(maxval + 1)]
     return series
