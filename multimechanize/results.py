@@ -32,6 +32,8 @@ def output_results(results_dir, results_file, run_time, rampup, ts_interval, use
 
     write_report(results, results_dir, run_time, rampup, ts_interval, user_group_configs)
 
+    return results
+
 
 def write_report(results, results_dir, run_time, rampup, ts_interval, user_group_configs):
     report = reportwriter.Report(results_dir)
